@@ -1,0 +1,257 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expense Tracker</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary: #4361ee;
+            --secondary: #3f37c9;
+            --success: #4cc9f0;
+            --light: #f8f9fa;
+            --dark: #212529;
+        }
+        
+        body {
+            background-color: #f5f7fb;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .navbar {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+        }
+        
+        .card {
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+            margin-bottom: 20px;
+            border: none;
+        }
+        
+        .card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .dashboard-card {
+            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+            color: white;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary);
+            border-color: var(--primary);
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--secondary);
+            border-color: var(--secondary);
+        }
+        
+        .stats-number {
+            font-size: 2rem;
+            font-weight: bold;
+        }
+        
+        .expense-table {
+            background-color: white;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        
+        .category-badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+        }
+        
+        /* Fixed category badge styles - using consistent naming */
+        .Food-badge, .food-badge {
+            background-color: #ffcdb2;
+            color: #b5838d;
+        }
+        
+        .Travel-badge, .travel-badge {
+            background-color: #c7f9cc;
+            color: #38b000;
+        }
+        
+        .Bills-badge, .bills-badge {
+            background-color: #a2d2ff;
+            color: #3a86ff;
+        }
+        
+        .Entertainment-badge, .entertainment-badge {
+            background-color: #ffafcc;
+            color: #ff0054;
+        }
+        
+        .Other-badge, .other-badge {
+            background-color: #e0c3fc;
+            color: #7209b7;
+        }
+        
+        /* Add more category styles as needed */
+        .Shopping-badge, .shopping-badge {
+            background-color: #ffd6ff;
+            color: #9d4edd;
+        }
+        
+        .Transportation-badge, .transportation-badge {
+            background-color: #fdffb6;
+            color: #f77f00;
+        }
+        
+        .Healthcare-badge, .healthcare-badge {
+            background-color: #d0f4de;
+            color: #2a9d8f;
+        }
+        
+        .chart-container {
+            background-color: white;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        
+        .section-title {
+            border-left: 4px solid var(--primary);
+            padding-left: 10px;
+            margin: 25px 0 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="{{ url_for('index') }}">
+                <i class="bi bi-wallet2 me-2"></i>ExpenseTracker
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('index') }}">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('add_expense') }}">Add Expense</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('view_expenses') }}">View Expenses</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('dashboard') }}">Analytics</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container py-4">
+        <!-- Flash messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'success' if category == 'success' else 'danger' }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Dashboard Summary -->
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card dashboard-card">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Total Expenses</h5>
+                        <p class="stats-number">₹{{ "%.2f"|format(total_expenses) }}</p>
+                        <p class="card-text">All time</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Number of Expenses</h5>
+                        <p class="stats-number text-primary">{{ expenses_count }}</p>
+                        <p class="card-text">Records tracked</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h5 class="card-title">Quick Actions</h5>
+                        <div class="d-grid gap-2">
+                            <a href="{{ url_for('add_expense') }}" class="btn btn-primary">Add Expense</a>
+                            <a href="{{ url_for('export_csv') }}" class="btn btn-outline-primary">Export CSV</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <h3 class="section-title mt-5">Recent Expenses</h3>
+        
+        <!-- Recent Expenses Table -->
+        <div class="card expense-table">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="card-title mb-0">Last 5 Expenses</h5>
+                    <div>
+                        <a href="{{ url_for('view_expenses') }}" class="btn btn-sm btn-outline-secondary me-2">View All</a>
+                        <a href="{{ url_for('add_expense') }}" class="btn btn-sm btn-primary">Add Expense</a>
+                    </div>
+                </div>
+                {% if recent_expenses %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Category</th>
+                                <th>Description</th>
+                                <th>Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for expense in recent_expenses %}
+                            <tr>
+                                <td>{{ expense.date.strftime('%Y-%m-%d') }}</td>
+                                <td>
+                                    <!-- Fixed category badge - using the actual category name -->
+                                    <span class="category-badge {{ expense.category }}-badge">
+                                        {{ expense.category }}
+                                    </span>
+                                </td>
+                                <td>{{ expense.description }}</td>
+                                <td class="text-danger">₹{{ "%.2f"|format(expense.amount) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <p class="text-muted">No expenses recorded yet.</p>
+                    <a href="{{ url_for('add_expense') }}" class="btn btn-primary">Add Your First Expense</a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
