@@ -1,4 +1,4 @@
-# app.py
+import os
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
@@ -11,8 +11,17 @@ import base64
 import csv
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'your-secret-key-here'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///expenses.db'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+
+# Database configuration for Render
+database_url = os.environ.get('DATABASE_URL')
+if database_url:
+    if database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+else:
+    database_url = 'sqlite:///expenses.db'
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
@@ -55,17 +64,22 @@ def index():
 @app.route('/add', methods=['GET', 'POST'])
 def add_expense():
     if request.method == 'POST':
-        amount = float(request.form['amount'])
-        category = request.form['category']
-        date = datetime.strptime(request.form['date'], '%Y-%m-%d')
-        description = request.form['description']
-        
-        new_expense = Expense(amount=amount, category=category, date=date, description=description)
-        db.session.add(new_expense)
-        db.session.commit()
-        
-        flash('Expense added successfully!', 'success')
-        return redirect(url_for('index'))
+        try:
+            amount = float(request.form['amount'])
+            category = request.form['category']
+            date = datetime.strptime(request.form['date'], '%Y-%m-%d')
+            description = request.form['description']
+            
+            new_expense = Expense(amount=amount, category=category, date=date, description=description)
+            db.session.add(new_expense)
+            db.session.commit()
+            
+            flash('Expense added successfully!', 'success')
+            return redirect(url_for('index'))
+        except ValueError:
+            flash('Please enter valid data!', 'error')
+        except Exception as e:
+            flash('Error adding expense. Please try again.', 'error')
     
     return render_template('add_expense.html')
 
@@ -112,79 +126,93 @@ def view_expenses():
 
 @app.route('/delete/<int:id>')
 def delete_expense(id):
-    expense = Expense.query.get_or_404(id)
-    db.session.delete(expense)
-    db.session.commit()
-    flash('Expense deleted successfully!', 'success')
+    try:
+        expense = Expense.query.get_or_404(id)
+        db.session.delete(expense)
+        db.session.commit()
+        flash('Expense deleted successfully!', 'success')
+    except Exception as e:
+        flash('Error deleting expense. Please try again.', 'error')
     return redirect(url_for('view_expenses'))
 
 @app.route('/export/csv')
 def export_csv():
-    expenses = Expense.query.all()
-    
-    # Create CSV in memory using StringIO
-    output = StringIO()
-    writer = csv.writer(output)
-    writer.writerow(['Date', 'Category', 'Description', 'Amount (₹)'])
-    
-    for expense in expenses:
-        writer.writerow([
-            expense.date.strftime('%Y-%m-%d'),
-            expense.category,
-            expense.description,
-            expense.amount
-        ])
-    
-    # Prepare response
-    output.seek(0)
-    
-    return send_file(
-        BytesIO(output.getvalue().encode('utf-8')),
-        as_attachment=True,
-        download_name='expenses.csv',
-        mimetype='text/csv'
-    )
+    try:
+        expenses = Expense.query.all()
+        
+        # Create CSV in memory using StringIO
+        output = StringIO()
+        writer = csv.writer(output)
+        writer.writerow(['Date', 'Category', 'Description', 'Amount (₹)'])
+        
+        for expense in expenses:
+            writer.writerow([
+                expense.date.strftime('%Y-%m-%d'),
+                expense.category,
+                expense.description,
+                expense.amount
+            ])
+        
+        # Prepare response
+        output.seek(0)
+        
+        return send_file(
+            BytesIO(output.getvalue().encode('utf-8')),
+            as_attachment=True,
+            download_name='expenses.csv',
+            mimetype='text/csv'
+        )
+    except Exception as e:
+        flash('Error exporting CSV. Please try again.', 'error')
+        return redirect(url_for('index'))
 
 # Helper functions for charts
 def generate_pie_chart(categories):
     if not categories:
         return None
         
-    # Create pie chart
-    plt.figure(figsize=(6, 6))
-    plt.pie(categories.values(), labels=categories.keys(), autopct='%1.1f%%')
-    plt.title('Expenses by Category')
-    
-    # Save to base64 string
-    img = BytesIO()
-    plt.savefig(img, format='png')
-    img.seek(0)
-    chart_url = base64.b64encode(img.getvalue()).decode('utf8')
-    plt.close()
-    
-    return chart_url
+    try:
+        # Create pie chart
+        plt.figure(figsize=(6, 6))
+        plt.pie(categories.values(), labels=categories.keys(), autopct='%1.1f%%')
+        plt.title('Expenses by Category')
+        
+        # Save to base64 string
+        img = BytesIO()
+        plt.savefig(img, format='png', bbox_inches='tight')
+        img.seek(0)
+        chart_url = base64.b64encode(img.getvalue()).decode('utf8')
+        plt.close()
+        
+        return chart_url
+    except Exception as e:
+        return None
 
 def generate_line_chart(months, values):
     if not months:
         return None
         
-    # Create line chart
-    plt.figure(figsize=(8, 4))
-    plt.plot(months, values, marker='o')
-    plt.title('Monthly Spending Trend')
-    plt.xlabel('Month')
-    plt.ylabel('Amount (₹)')
-    plt.xticks(rotation=45)
-    plt.tight_layout()
-    
-    # Save to base64 string
-    img = BytesIO()
-    plt.savefig(img, format='png')
-    img.seek(0)
-    chart_url = base64.b64encode(img.getvalue()).decode('utf8')
-    plt.close()
-    
-    return chart_url
+    try:
+        # Create line chart
+        plt.figure(figsize=(8, 4))
+        plt.plot(months, values, marker='o')
+        plt.title('Monthly Spending Trend')
+        plt.xlabel('Month')
+        plt.ylabel('Amount (₹)')
+        plt.xticks(rotation=45)
+        plt.tight_layout()
+        
+        # Save to base64 string
+        img = BytesIO()
+        plt.savefig(img, format='png', bbox_inches='tight')
+        img.seek(0)
+        chart_url = base64.b64encode(img.getvalue()).decode('utf8')
+        plt.close()
+        
+        return chart_url
+    except Exception as e:
+        return None
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port, debug=False)
